@@ -1,5 +1,5 @@
 # gpu-passthrough-tools
-Some scripts to automatically configure gpu passthrough in less then 2 minutes.
+Some scripts to automatically configure gpu passthrough in less then 2 minutes on Debian/Ubuntu based linux distributions.
 After following the following steps your GPU should be isolated and ready for GPU passthrough
 ```
 # Install git to clone the GPU passthrough scripts
