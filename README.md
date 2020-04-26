@@ -18,3 +18,9 @@ Check if the gpu uses the vfio driver after reboot
 ```
 lspci -nnv
 ```
+Additional commands
+```
+# Show help
+sudo bash /usr/share/gptools/tools.sh -h
+
+```
