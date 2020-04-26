@@ -13,6 +13,8 @@ lspci -nnv
 ```
 Additional commands
 ```
+# Syntax:
+gptools -[option]
 # Start automated interactive script [Recommended]
 sudo gptools -a
 #
