@@ -1,5 +1,5 @@
 # gpu-passthrough-tools
-Some scripts to automatically configure gpu passthrough in less then 2 minutes on Debian/Ubuntu based linux distributions.
+Some scripts to automatically configure gpu passthrough in less then 5 minutes on Debian/Ubuntu based linux distributions.
 After following the following steps your GPU should be isolated and ready for GPU passthrough.
 The installation guide is in the wiki https://github.com/Transistor4aCPU/gpu-passthrough-tools/wiki/Debian-package-installation
 After the installation you can use the gptools
