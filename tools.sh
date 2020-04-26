@@ -6,6 +6,7 @@ while getopts ":afghilr" opt; do
       ;;
     g )
 	bash /usr/share/gptools/iommu-conf-manual
+      ;;
     h )
 	echo "This is an gpu passthrough configuration tool"
 	echo "Syntax:"
@@ -20,7 +21,8 @@ while getopts ":afghilr" opt; do
 	echo "-v        Global verbose mode"
       ;;
     i )
-	b
+        bash /usr/share/gptools/isolation-manual.sh
+      ;;   
     l )
         bash /usr/share/gptools/iommu-groups.sh
       ;;
