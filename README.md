@@ -24,9 +24,6 @@ gptools -[option]
 # Start automated interactive script [Recommended]
 sudo gptools -a
 #
-# Configure IOMMU in grub
-sudo gptools -g
-#
 # Show help
 sudo gptools -h
 #
