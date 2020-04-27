@@ -11,13 +11,13 @@ Reboot and check if the gpu uses the vfio driver
 ```
 lspci -nnv
 ```
-# Requirements
+## Requirements
 ```
 Virtualization technology enabled
 IOMMU enabled
 At least 2 gpus
 ```
-# Additional commands
+## Additional commands
 ```
 # Syntax:
 gptools -[option]
