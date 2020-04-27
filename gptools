@@ -1,0 +1,424 @@
+#!/bin/bash
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
+fi
+while getopts ":ahilrv" opt; do
+  case ${opt} in
+    a )
+	echo "This interactive automated script configures gpu passthrough"
+	echo "Check requirements..."
+	# GPU test
+	if [ "$(lspci -nn | grep VGA | wc -l)" -lt 2 ]
+        then gpus=0
+        else gpus=1
+	fi
+	# IOMMU test
+	if compgen -G "/sys/kernel/iommu_groups/*/devices/*" > /dev/null; then
+    		iommu=1
+	else
+    		iommu=0
+	fi
+
+	# Check if AMD svm or Intel vmx is enabled
+	if [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "svm" ]
+		then vm=1
+		elif [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "vmx" ]
+			then vm=1
+		else vm=0
+	fi
+	# Check requirements
+	if [ $(($gpus + $iommu + $vm)) == "3" ]
+        	then echo "All requirements met"
+        	else echo "Requirements not met"
+	fi
+	# Summary
+	echo "Summary"
+	# GPU summary
+	if [ $gpus -eq 1 ]
+		then echo "Enough gpus"
+		elif [ $gpus -eq 0 ]
+			then echo "You need at least 2 gpus"
+		else echo "Script error at gpu. Please open an issue at https://github.com/Transistor4aCPU/"
+	fi
+	# IOMMU summary
+	if [ $iommu -eq 1 ]
+        	then echo "IOMMU enabled"
+     		elif [ $iommu -eq 0 ]
+                	then echo "IOMMU isn't enabled. Enable it in the UEFI"
+        	else echo "Script error at IOMMU. Please open an issue at https://github.com/Transistor4aCPU/"
+	fi
+	# Virtualization technology summary
+	if [ $vm -eq 1 ]
+		then echo "Virtualization technology enabled"
+		elif [ $vm -eq 0 ]
+			then echo "Error: Virtualization technology not enabled"
+        	else echo "Script error at virtualization technology. Please open an issue at https://github.com/Transistor4aCPU/"
+	fi
+	# Troubleshooting notes
+	if [ $(($gpus + $iommu + $vm)) != "3" ]
+		then
+			echo "Troubleshooting notes"
+			if [ "$gpus" -eq 0 ]
+                	        then echo "You need at least 2 gpus for gpu passthrough"
+                	fi
+                	if [ "$iommu" -eq 0 ]
+                	        then echo "You have to enable IOMMU in the UEFI"
+                	fi
+                	if [ "$vm" -eq 0 ]
+                        	then echo "You have to enable the virtualization technology in the UEFI"
+                	fi
+			echo "Requirements not met"
+			echo "Exit"
+			exit
+	fi
+	# Show IOMMU groups
+	echo "Interactive IOMMU groups check..."
+	shopt -s nullglob
+	for d in /sys/kernel/iommu_groups/*/devices/*; do
+    	    n=${d#*/iommu_groups/*}; n=${n%%/*}
+    	    printf 'IOMMU Group %s ' "$n"
+    	    lspci -nns "${d##*/}"
+	done;
+	echo "Is your GPU and the gpu audio controller you want to passthrough alone in one IOMMU group? [Y/n]"
+	read iommu
+	if [ "$iommu" == "Y" ]
+        	then
+			echo "We have to configure grub..."
+			if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+		        	then cpuvendor=AMD
+        			elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+                			then cpuvendor=Intel
+        			else
+                			echo "Unknown CPU vendor"
+                			echo "You have to edit the grub file"
+			fi
+			echo "We have to configure grub"
+			echo "Choose on of the following options, print only the number"
+			echo "1. Automatic configuration [Recommended] [Don't work if quiet splash isn't enabled in grub]"
+			echo "2. Manual configuration"
+			echo "3. Exit"
+			read grub
+			if [ "$grub" == "1" ]
+        			then
+                			if [ "$cpuvendor" == "AMD" ]
+                       				then
+                               				sed -i s/"quiet splash"/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"/g /etc/default/grub
+                               				update-grub
+                       				elif [ "$cpuvendor" == "Intel" ]
+                                			then
+                                        			sed -i s/"quiet splash"/"intel_iommu=on iommu=pt"/g /etc/default/grub
+                                        			update-grub
+                        			else
+							echo "Grub autoconfiguration error. Choose manual configuration"
+                                			exit
+                			fi
+        			elif [ "$grub" == "2" ]
+                			then
+                        			if [ "$cpuvendor" == "AMD" ]
+                               				then
+                                       				echo "Add "amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1" to GRUB_CMDLINE_LINUX_Default"
+                                       				echo "Press "Y" if you have copied what you should add"
+                                       				read grubdefault
+                                       				if [ "$grubdefault" == "Y" ]
+                                               				then
+                                                       				nano /etc/default/grub
+                                                       				update-grub
+                                       				fi
+                               				elif [ "$cpuvendor" == "Intel" ]
+                                       				then
+                                               				echo "Add "intel_iommu=on iommu=pt" to GRUB_CMDLINE_LINUX_Default"
+                                               				echo "Press "Y" if you have copied what you should add"
+                                               				read grubdefault
+                                               				if [ "$grubdefault" == "Y" ]
+                                                       				then
+											nano /etc/default/grub
+											update-grub
+									fi
+						fi
+				else exit
+			fi
+		elif [ "$iommu" == "n" ]
+			then
+				echo "You have to install the acso Kernel Patch"
+				echo "Choose an option"
+				echo "[1] Install precompiled acso patch"
+				echo "[2] Exit"
+				read autoacsopatch
+				if [ "$autoacsopatch" == "1" ]
+					then
+						mkdir acsokernel/
+						cd acsokernel/
+						wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/397902098/artifacts/download
+						unzip download
+						dpkg -i linux-image-5.4.10-acso_5.4.10-acso-1_amd64.deb
+						sudo update-grub
+						echo "Choose the acso kernel in grub at the next boot"
+						cd ..
+						rm -r acsokernel/
+						echo "We have to configure grub..."
+                				if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+                        				then cpuvendor=AMD
+                        				elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+                                				then cpuvendor=Intel
+                        				else
+                                				echo "Unknown CPU vendor"
+                                				echo "You have to edit the grub file"
+                				fi
+                				echo "We have to configure grub"
+                				echo "Choose on of the following options, print only the number"
+                				echo "1. Automatic configuration [Recommended] [Don't work if quiet splash isn't enabled in grub]"
+                				echo "2. Manual configuration"
+                				echo "3. Exit"
+                				read grub
+                				if [ "$grub" == "1" ]
+                        				then
+                                				if [ "$cpuvendor" == "AMD" ]
+                                        				then
+                                                				sed -i s/"quiet splash"/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction"/g /etc/default/
+                                               				 	update-grub
+                                        				elif [ "$cpuvendor" == "Intel" ]
+                                                				then
+                                                        				sed -i s/"quiet splash"/"intel_iommu=on iommu=pt pcie_acs_override=downstream,multifunction"/g /etc/default/grub
+                                                        				update-grub
+                                        				else
+                                                				echo "Grub autoconfiguration error. Choose manual configuration"
+                                                				exit
+                                				fi
+                        				elif [ "$grub" == "2" ]
+                                				then
+                                        				if [ "$cpuvendor" == "AMD" ]
+                                                				then
+                                                        				echo "Add "amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction" to GRUB_CMDLINE_LINUX"
+                                                        				echo "Press "Y" if you have copied what you should add"
+                                                        				read grubdefault
+                                                        				if [ "$grubdefault" == "Y" ]
+                                                                				then
+                                                                        				nano /etc/default/grub
+                                                                        				update-grub
+                                                        				fi
+                                                				elif [ "$cpuvendor" == "Intel" ]
+                                                        				then
+                                                                				echo "Add "intel_iommu=on iommu=pt pcie_acs_override=downstream,multifunction" to GRUB_CMDLINE_LINUX_Default"
+												echo "Press "Y" if you have copied what you should add"
+                                                                				read grubdefault
+                                                                				if [ "$grubdefault" == "Y" ]
+                                                                        				then
+														nano /etc/default/grub
+                                                                				    		update-grub
+												fi
+                                       				fi
+							else exit
+				fi
+		fi
+		else
+			echo "Answer no available"
+			echo "exit"
+			exit
+	fi
+	echo "Choose the gpu you want passthrough"
+	echo "You can't passthrough the initializing gpu"
+	lspci -nn | grep "VGA compatible controller" | cat -b
+	read gpu
+	if [ "$gpu" == "1" ]
+		then
+        		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '1p' | grep -w -o 1...:....)
+                	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '1p' | grep -o ..:.. | sed -n '1p').1
+                	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+        	elif [ "$gpu" == "2" ]
+                	then
+                        	pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '2p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '2p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+		elif [ "$gpu" == "3" ]
+        		then
+                 		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '3p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '3p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+		elif [ "$gpu" == "4" ]
+        		then
+                		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '4p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '4p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+        	elif [ "$gpu" == "5" ]
+        		then
+                		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '5p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '5p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+		elif [ "$gpu" == "6" ]
+			then
+                		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '6p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '6p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+		elif [ "$gpu" == "7" ]
+        		then
+                		pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '7p' | grep -w -o 1...:....)
+                        	actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '7p' | grep -o ..:.. | sed -n '1p').1
+                        	actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+	fi
+	# Configure files for gpu passthrough
+	echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules
+	echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules
+	echo "softdep nouveau pre: vfio-pci" > /etc/modprobe.d/nvidia.conf
+	echo "softdep nvidia pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+	echo "softdep nvidia* pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+	echo "softdep amdgpu pre: vfio-pci" > /etc/modprobe.d/amdgpu.conf
+	echo "softdep amdgpu* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+	echo "softdep radeon pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+	echo "softdep radeon* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+	echo "options vfio-pci ids=$pgpu,$actrl" > /etc/modprobe.d/vfio.conf
+	update-initramfs -u -k all
+	echo "Finished configuration"
+	echo "Do you want to reboot now to apply changes?[Y/n]"
+	read reboot
+	if [ "$reboot" == "Y" ]
+        	then reboot
+	fi
+      ;;
+    h )
+        echo "This is an gpu passthrough configuration tool"
+        echo "Syntax:"
+        echo "gptools option"
+        echo "Options:"
+        echo "-a        Automated interactive script [Recommended]"
+        echo "-h        Help"
+        echo "-i        Isolate gpus to passthrough additional gpus after automatic configuration"
+        echo "-l        List gpus with IOMMU groups"
+        echo "-r        Check requirements"
+        echo "-v        Global verbose mode"
+      ;;
+    i )
+        echo "Choose the gpu you want passthrough"
+        echo "You can't passthrough the initializing gpu"
+        lspci -nn | grep "VGA compatible controller" | cat -b
+        read gpu
+        if [ "$gpu" == "1" ]
+                then
+                        pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '1p' | grep -w -o 1...:....)
+                        actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '1p' | grep -o ..:.. | sed -n '1p').1
+                        actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "2" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '2p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '2p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "3" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '3p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '3p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "4" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '4p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '4p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "5" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '5p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '5p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "6" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '6p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '6p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+                elif [ "$gpu" == "7" ]
+                        then
+                                pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n '7p' | grep -w -o 1...:....)
+                                actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n '7p' | grep -o ..:.. | sed -n '1p').1
+                                actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+        fi
+        # Configure files for gpu passthrough
+        echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules
+        echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules
+        echo "options vfio-pci ids=$pgpu,$actrl" > /etc/modprobe.d/vfio.conf
+        update-initramfs -u -k all
+        echo "Finished configuration"
+        echo "Do you want to reboot now to apply changes?[Y/n]"
+        read reboot
+        if [ "$reboot" == "Y" ]
+                then reboot
+        fi
+      ;;
+    l )
+	shopt -s nullglob
+	for d in /sys/kernel/iommu_groups/*/devices/*; do
+    	    n=${d#*/iommu_groups/*}; n=${n%%/*}
+            printf 'IOMMU Group %s ' "$n"
+    	    lspci -nns "${d##*/}"
+	done;
+      ;;
+    r )
+        echo "This interactive automated script configures gpu passthrough"
+        echo "Check requirements..."
+        # GPU test
+        if [ "$(lspci -nn | grep VGA | wc -l)" -lt 2 ]
+        then gpus=0
+        else gpus=1
+        fi
+        # IOMMU test
+        if compgen -G "/sys/kernel/iommu_groups/*/devices/*" > /dev/null; then
+                iommu=1
+        else
+                iommu=0
+        fi
+
+        # Check if AMD svm or Intel vmx is enabled
+        if [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "svm" ]
+                then vm=1
+                elif [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "vmx" ]
+                        then vm=1
+                else vm=0
+        fi
+        # Check requirements
+        if [ $(($gpus + $iommu + $vm)) == "3" ]
+                then echo "All requirements met"
+                else echo "Requirements not met"
+        fi
+        # Summary
+        echo "Summary"
+        # GPU summary
+        if [ $gpus -eq 1 ]
+                then echo "Enough gpus"
+                elif [ $gpus -eq 0 ]
+                        then echo "You need at least 2 gpus"
+                else echo "Script error at gpu. Please open an issue at https://github.com/Transistor4aCPU/"
+        fi
+        # IOMMU summary
+        if [ $iommu -eq 1 ]
+                then echo "IOMMU enabled"
+                elif [ $iommu -eq 0 ]
+                        then echo "IOMMU is not enabled. Enable it in the UEFI"
+                else echo "Script error at IOMMU. Please open an issue at https://github.com/Transistor4aCPU/"
+        fi
+        # Virtualization technology summary
+        if [ $vm -eq 1 ]
+                then echo "Virtualization technology enabled"
+                elif [ $vm -eq 0 ]
+                        then echo "Error: Virtualization technology not enabled"
+                else echo "Script error at virtualization technology. Please open an issue at https://github.com/Transistor4aCPU/"
+        fi
+        # Troubleshooting notes
+        if [ $(($gpus + $iommu + $vm)) != "3" ]
+                then
+                        echo "Troubleshooting notes"
+                        if [ "$gpus" -eq 0 ]
+                                then echo "You need at least 2 gpus for gpu passthrough"
+                        fi
+                        if [ "$iommu" -eq 0 ]
+                               then echo "You have to enable IOMMU in the UEFI"
+                        fi
+                        if [ "$vm" -eq 0 ]
+                                then echo "You have to enable the virtualization technology in the UEFI"
+                        fi
+        fi
+      ;;
+    v )
+        set -x
+      ;;
+    \? )
+        bash /usr/bin/gptools -h
+      ;;
+  esac
+done
+exit
