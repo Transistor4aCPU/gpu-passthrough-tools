@@ -14,7 +14,7 @@ lspci -nnv
 # Requirements
 ```
 Virtualization technology enabled
-IOMMU enable
+IOMMU enabled
 At least 2 gpus
 ```
 # Additional commands
