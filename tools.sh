@@ -1,5 +1,5 @@
 #!/bin/bash
-while getopts ":afghilr" opt; do
+while getopts ":afghilrv" opt; do
   case ${opt} in
     a )
 	bash /usr/share/gptools/autoconfig.sh
@@ -29,6 +29,9 @@ while getopts ":afghilr" opt; do
     r )
         bash /usr/share/gptools/requirements.sh
       ;;
+    v )
+    	set -x
+      ;;      
     \? )
 	bash /usr/share/gptools/tools.sh -h
       ;;
