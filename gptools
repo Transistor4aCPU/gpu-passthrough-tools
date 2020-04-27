@@ -29,6 +29,9 @@ while getopts ":afghilr" opt; do
     r )
         bash /usr/share/gptools/requirements.sh
       ;;
+    v )
+     	set -x
+      ;;
     \? )
 	bash /usr/share/gptools/tools.sh -h
       ;;
