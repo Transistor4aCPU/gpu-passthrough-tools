@@ -49,3 +49,5 @@ sudo gptools -r
 # Global verbose mode
 sudo gptools -v
 ```
+## Additional info
+You find the modules of gptools with comments in the modules-documentation branch https://github.com/Transistor4aCPU/gpu-passthrough-tools/tree/modules-documentation 
