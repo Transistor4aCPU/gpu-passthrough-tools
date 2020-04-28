@@ -45,7 +45,4 @@ sudo gptools -l
 
 # Check requirements
 sudo gptools -r
-
-# Global verbose mode
-sudo gptools -v
 ```
