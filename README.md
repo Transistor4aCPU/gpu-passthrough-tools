@@ -21,18 +21,22 @@ At least 2 gpus
 ```
 # Syntax:
 gptools -[option]
+
 # Start automated interactive script [Recommended]
 sudo gptools -a
-#
+
 # Show help
 sudo gptools -h
-#
+
 # Isolate gpus to passthrough additional gpus after automatic configuration
 sudo gptools -i
-#
+
 # List gpus with IOMMU groups
 sudo gptools -l
-#
+
 # Check requirements
 sudo gptools -r
+
+# Global verbose mode
+sudo gptools -v
 ```
