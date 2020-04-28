@@ -1,0 +1,21 @@
+#!/bin/bash
+# isolate-gpu
+echo "Choose the gpu you want passthrough"
+echo "You can't passthrough the initializing gpu"
+lspci -nn | grep "VGA compatible controller" | cat -b # List gpus
+read gpu # Read gpu to passthrough
+pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$gpu"p" | grep -w -o 1...:....) # Set the value of variable pgpu to the gpu id 
+actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$gpu"p" | grep -o ..:.. | sed -n '1p').1 # Detect the audio controller of the gpu
+actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....) # Set the value of the variable actrl to the gpu audio controller id
+echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules # Add text to /etc/initramfs-tools/modules
+echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules # Add text to /etc/modules
+echo "softdep nouveau pre: vfio-pci" > /etc/modprobe.d/nvidia.conf # Create file /etc/modprobe.d/nvidia.conf with text
+echo "softdep nvidia pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf # Add text to /etc/modprobe.d/nvidia.conf
+echo "softdep nvidia* pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf # Add text to /etc/modprobe.d/nvidia.conf
+echo "softdep amdgpu pre: vfio-pci" > /etc/modprobe.d/amdgpu.conf # Create file /etc/modprobe.d/amdgpu.conf with text
+echo "softdep amdgpu* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf # Add text to /etc/modprobe.d/amdgpu.conf
+echo "softdep radeon pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf # Add text to /etc/modprobe.d/amdgpu.conf
+echo "softdep radeon* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf # Add text to /etc/modprobe.d/amdgpu.conf
+echo "options vfio-pci ids=$pgpu,$actrl" > /etc/modprobe.d/vfio.conf # Create file /etc/modprobe.de/vfio.conf with text
+update-initramfs -u -k all # Update initramfs to apply changes
+exit

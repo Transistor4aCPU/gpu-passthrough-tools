@@ -1,0 +1,10 @@
+#!/bin/bash
+mkdir acsokernel/ # Make directory acsokernel
+cd acsokernel/ # Change tp directory acsokernel
+wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/397902098/artifacts/download # Download acso kernel
+unzip download # Unzip acso kernel
+dpkg -i linux-image-5.4.10-acso_5.4.10-acso-1_amd64.deb # Install acso kernel
+update-grub # Update grub
+cd .. # Change to initial directory
+rm -r acsokernel/ # Delete acso kernel download files
+exit

@@ -1,0 +1,75 @@
+#!/bin/bash
+# Check requirements module
+
+# GPU test
+if [ "$(lspci -nn | grep VGA | wc -l)" -lt 2 ] # Check if there are less then 2 gpus
+	then gpus=0 # Set variable gpus to 0 if there are less then 2 gpus
+	else gpus=1 # Set variable gpus to 1 if there are 2 or more gpus
+fi
+
+# IOMMU test
+if [ "compgen -G "/sys/kernel/iommu_groups/*/devices/*"" > /dev/null ] # Check if IOMMU is enabled in the BIOS
+	then iommu=1 # Set variable IOMMU to 1 if IOMMU is enabled in the BIOS
+	else iommu=0 # Set variable IOMMU to 0 if IOMMU is not enabled in the BIOS
+fi
+
+# Check if AMD svm or Intel vmx is enabled
+if [ "$(grep -o "svm" /proc/cpuinfo | sort | uniq)" == "svm" ] # Check if the cpu has svm (AMD virtualization technology) enabled
+	then vm=1 # Set variable vm to 1 if svm is enabled
+	elif [ "$(grep -o "vmx" /proc/cpuinfo | sort | uniq)" == "vmx" ] # Check if the cpu has vmx (Intel virtualization technology) enabled
+		then vm=1 # Set variable vm to 1 if vmx is enabled
+        else vm=0 # Set variable vm to 0 if no virtualization technology is enabled
+fi
+
+# Check requirements
+if [ $(($gpus + $iommu + $vm)) == "3" ] # Check if all requirements are met
+	then echo "All requirements met" # Print dialog if all requirements are met
+        else echo "Requirements not met" # Print dialog if not all requirements are met
+fi
+
+# Summary
+echo "Summary" # Print summary to start the requirements summary summary
+
+# GPU summary
+if [ $gpus -eq 1 ] # Check the gpus variable
+	then echo "Enough gpus" # Print dialog if there are enough gpus
+        elif [ $gpus -eq 0 ]
+		then echo "You need at least 2 gpus" # Print dialog if there aren't enough gpus
+        else echo "Script error at gpu. Please open an issue at https://github.com/Transistor4aCPU/" # Print an error message if the variable value is not valid
+fi
+
+# IOMMU summary
+if [ $iommu -eq 1 ] # Check the iommu variable
+	then echo "IOMMU enabled" # Print dialog if IOMMU is enabled
+        elif [ $iommu -eq 0 ]
+		then echo "IOMMU is not enabled. Enable it in the UEFI" # Print dialog if IOMMU isn't enabled
+	else echo "Script error at IOMMU. Please open an issue at https://github.com/Transistor4aCPU/" # Print an error message if the variable value is not valid
+fi
+
+# Virtualization technology summary
+if [ $vm -eq 1 ] # Check the vm variable
+	then echo "Virtualization technology enabled" # Print dialog if the virtualization technology is enabled
+	elif [ $vm -eq 0 ]
+		then echo "Error: Virtualization technology not enabled" # Print dialog if the virtualization technology is not enabled
+        else echo "Script error at virtualization technology. Please open an issue at https://github.com/Transistor4aCPU/" # Print an error message if the variable value is not valid
+fi
+
+# Troubleshooting notes
+if [ $(($gpus + $iommu + $vm)) != "3" ] # Check if not all requirements are met
+	then
+		echo "Troubleshooting notes" # Print Troubleshooting notes to start the Troubleshooting summary
+                # Check if an requirement is not met and give troubleshooting tips
+                if [ "$gpus" -eq 0 ]
+			then echo "You need at least 2 gpus for gpu passthrough"
+		fi
+                if [ "$iommu" -eq 0 ]
+			then echo "You have to enable IOMMU in the UEFI"
+                fi
+                if [ "$vm" -eq 0 ]
+			then echo "You have to enable the virtualization technology in the UEFI"
+                fi
+                echo "Requirements not met"
+                echo "Exit"
+		exit # Exit if requirements aren't met
+fi
+exit
