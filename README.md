@@ -1,5 +1,5 @@
 # gpu-passthrough-tools
-A program that automatically configures gpu passthrough in less then 5 minutes on Debian/Ubuntu based linux distributions.
+A program that automatically configures gpu passthrough in less then 5 minutes on Debian/Ubuntu based linux distributions
 ###
 ## Installation
 ```
