@@ -1,0 +1,12 @@
+#!/bin/bash
+# Grub remove iommu config module
+if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ] # Check if AMD is the cpu vendor
+        then
+                sed -i s/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"/"quiet splash"/g /etc/default/grub # Exchange iommu config in /etc/default/grub with quiet splash
+                update-grub # Update grub to apply changes
+        elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ] # Check if Intel is the cpu vendor
+                then
+                        sed -i s/"quiet splash"/"intel_iommu=on iommu=pt"/g /etc/default/grub # Exchange quiet splash in /etc/default/grub # Exchange iommu config in /etc/default/grub with quiet splash
+                        update-grub # Update grub to apply changes
+fi
+exit
