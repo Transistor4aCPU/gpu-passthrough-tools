@@ -1,0 +1,23 @@
+#!/bin/bash
+# Remove isolation
+echo "Choose the gpu where you want to remove the isolation"
+lspci -nn | grep "VGA compatible controller" | cat -b # List gpus
+read gpu # Read gpu to passthrough
+pgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$gpu"p" | grep -w -o 1...:....) # Set the value of variable pgpu to the gpu id
+actrlh=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$gpu"p" | grep -o ..:.. | sed -n '1p').1 # Detect the audio controller of the gpu
+actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....) # Set the value of the variable actrl to the gpu audio controller id
+# Remove lines that are isolating the gpu
+if [ "$(grep -o "$pgpu" /etc/initramfs-tools/modules)" == $pgpu ] # Check if the gpu is isolated in this file
+	then sed -i "/"$pgpu"/d" /etc/initramfs-tools/modules # Remove isolation
+	else echo "Gpu is not isolated in /etc/initramfs-tools/modules"
+fi
+if [ "$(grep -o "$pgpu" /etc/modules)" == $pgpu ] # Check if the gpu is isolated in this file
+	then sed -i "/"$pgpu"/d" /etc/modules # Remove isolation
+	else echo "Gpu is not isolated in /etc/modules"
+fi
+if [ "$(grep -o "$pgpu" /etc/modprobe.d/vfio.conf)" == $pgpu ] # Check if the gpu is isolated in this file
+	then sed -i "/"$pgpu"/d" /etc/modprobe.d/vfio.conf # Remove isolation
+	else echo "Gpu is not isolated in /etc/modprobe.d/vfio.conf"
+fi
+update-initramfs -u -k all # Update initramfs to apply changes
+exit
