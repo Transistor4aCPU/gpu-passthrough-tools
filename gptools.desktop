@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=GPTools
+Comment=Tools for gpu passthrough
+Exec=pkexec bash gptools-gui
+Terminal=false
+Type=Application
+Categories=Application;System;Settings;Utility;Development;
