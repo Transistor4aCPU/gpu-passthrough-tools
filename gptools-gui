@@ -151,7 +151,7 @@ if [ "$tooluwant" == "Automated interactive gpu passthrough configuration tool" 
                         					then
                                 					if [ "$cpuvendor" == "AMD" ]
                                         					then
-                                                					sed -i s/"quiet splash"/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction"/g /etc/default/
+                                                					sed -i s/"quiet splash"/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction"/g /etc/default/grub
                                                				 		update-grub
                                         					elif [ "$cpuvendor" == "Intel" ]
                                                 					then
