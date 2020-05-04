@@ -9,7 +9,7 @@ wget https://github.com/Transistor4aCPU/gpu-passthrough-tools/releases/download/
 # Install Debian package 
 sudo dpkg -i gptools-gui-0.6.2-amd64.deb
 ```
-### Now you should be able to start "GPTools" from the application menu
+#### Now you should be able to start "GPTools" from the application menu
 ####
 ## Installation CMD version
 ```
