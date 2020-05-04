@@ -1,0 +1,11 @@
+# Show IOMMU groups
+foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+ctgpu=$(zenity --list --text="Choose the gpu you want to isolate for passthrough\nYou can not use the initialising gpu" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+ipgpu=$(echo "$ctgpu" | grep -o "..:....VGA" | grep -o "..:....")
+pgpu=$(echo "$ctgpu" | grep -w -o "1...:....")
+iommugroup=$(find /sys/kernel/iommu_groups/ -type l | grep $ipgpu | grep -o "/../" | grep -Eo '[0-9]{1,4}' )
+iommuc=$(find /sys/kernel/iommu_groups/ -type l | grep -o "/iommu_groups/$iommugroup" | grep -c "$iommugroup")
+if [ $iommuc > 2 ]
+  then iommu=0
+  else iommu=1
+fi
