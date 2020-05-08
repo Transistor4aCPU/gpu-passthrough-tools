@@ -4,8 +4,7 @@ A program that automatically configures gpu passthrough in less then 5 minutes o
 ## Installation GUI version
 ```
 # Download Debian package 
-wget https://github.com/Transistor4aCPU/gpu-passthrough-tools/releases/download/0.5/gptools-0.5-amd64.deb
-
+wget https://github.com/Transistor4aCPU/gpu-passthrough-tools/releases/download/gptools-gui-0.6.2/gptools-gui-0.6.2-amd64.deb
 # Install Debian package 
 sudo dpkg -i gptools-gui-0.6.2-amd64.deb
 ```
