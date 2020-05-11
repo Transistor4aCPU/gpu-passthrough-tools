@@ -1,0 +1,213 @@
+#!/bin/bash
+if [ "$EUID" -ne 0 ]
+  then zenity --error --text="Please run gptools as root"
+  exit
+fi
+tooluwant="$(zenity --list --text="Choose the tool you want" --radiolist --column "Check" --column "Tool" TRUE "Automated interactive gpu passthrough configuration tool" FALSE "Isolate additional gpu [Only working after the auto gpu passthrough tool]" FALSE "remove gpu isolation" FALSE "Remove Grub IOMMU config")"
+if [ "$tooluwant" == "Automated interactive gpu passthrough configuration tool" ]
+	then
+		zenity --info --text "This interactive automated script configures gpu passthrough\nCheck requirements..." --title "gptools"
+		zenity --question --text="Do you wish to continue?"
+		cont=$?
+		if [ $cont == 1 ]
+			then exit
+		fi
+		# GPU test
+		if [ "$(lspci -nn | grep VGA | wc -l)" -lt 2 ]
+        		then gpus=0
+        		else gpus=1
+		fi
+		# IOMMU test
+		if compgen -G "/sys/kernel/iommu_groups/*/devices/*" > /dev/null; then
+    			iommu=1
+		else
+    			iommu=0
+		fi
+		# Check if AMD svm or Intel vmx is enabled
+		if [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "svm" ]
+			then vm=1
+			elif [ "$(egrep -o '(vmx|svm)' /proc/cpuinfo | sort | uniq)" == "vmx" ]
+				then vm=1
+			else vm=0
+		fi
+		# Check requirements
+		if [ $(($gpus + $iommu + $vm)) == "3" ]
+        		then zenity --info --text "All requirements met" --title "gptools"
+        		else zenity --info --text "Not all requirements met" --title "gptools"
+		fi
+		# Summary
+		# GPU summary
+		if [ $gpus -eq 1 ]
+			then zenity --info --text "Enough gpus" --title "gptools"
+			elif [ $gpus -eq 0 ]
+				then zenity --info --text "You need at least 2 gpus" --title "gptools"
+			else zenity --info --text "Script error at gpu. Please open an issue at https://github.com/Transistor4aCPU/" --title "gptools"
+		fi
+		# IOMMU summary
+		if [ $iommu -eq 1 ]
+        		then zenity --info --text "IOMMU enabled" --title "gptools"
+     			elif [ $iommu -eq 0 ]
+                		then zenity --info --text "IOMMU isn't enabled. Enable it in the UEFI" --title "gptools"
+        		else zenity --info --text "Script error at IOMMU. Please open an issue at https://github.com/Transistor4aCPU/" --title "gptools"
+		fi
+		# Virtualization technology summary
+		if [ $vm -eq 1 ]
+			then zenity --info --text "Virtualization technology enabled" --title "gptools"
+			elif [ $vm -eq 0 ]
+				then zenity --info --text "Error: Virtualization technology not enabled" --title "gptools"
+        		else zenity --info --text "Script error at virtualization technology. Please open an issue at https://github.com/Transistor4aCPU/" --title "gptools"
+		fi
+		# Troubleshooting notes
+		if [ $(($gpus + $iommu + $vm)) != "3" ]
+			then
+				if [ "$gpus" -eq 0 ]
+                	        	then zenity --error --text "You need at least 2 gpus" --title "Troubleshooting notes"
+                		fi
+                		if [ "$iommu" -eq 0 ]
+                	        	then zenity --error --text "You have to enable IOMMU in the UEFI" --title "Troubleshooting notes"
+                		fi
+                		if [ "$vm" -eq 0 ]
+                        		then zenity --error --text "You have to enable the virtualization technology in the UEFI" --title "Troubleshooting notes"
+                		fi
+				zenity --error --text "Requirements not met\nExit"
+				exit
+		fi
+		# Show IOMMU groups
+		foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+		ctgpu=$(zenity --list --text="Choose the gpu you want to isolate for passthrough\nYou can not use the initialising gpu" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+		ipgpu=$(echo "$ctgpu" | grep -o "..:....VGA" | grep -o "..:....")
+		pgpu=$(echo "$ctgpu" | grep -w -o "1...:....")
+ 		iommugroup=$(find /sys/kernel/iommu_groups/ -type l | grep $ipgpu | grep -o "/../" | grep -Eo '[0-9]{1,4}' )
+		iommuc=$(find /sys/kernel/iommu_groups/ -type l | grep -o "/iommu_groups/$iommugroup" | grep -c "$iommugroup")
+		if [ $iommuc > 2 ]
+        		then iommu=0
+			else iommu=1
+		fi
+		if [ $iommu == 1 ]
+        		then
+				if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+		        		then cpuvendor=AMD
+        				elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+                				then cpuvendor=Intel
+        				else zenity --error --text="Unknown cpu vendor.\nYou have to edit the grub file manually"
+				fi
+				if [ "$cpuvendor" == "AMD" ]
+                       			then
+						grubdefault=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+						grubiommu=$(echo "$grubdefault" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+						grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubiommu}' amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"'
+						sed -i s/"$grubdefault"/"$grubtext"/g /etc/default/grub
+                               			update-grub
+                       			elif [ "$cpuvendor" == "Intel" ]
+                                		then
+	                                                grubdefault=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+        	                               	        grubiommu=$(echo "$grubdefault" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+                	                                grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubiommu}' intel_iommu=on iommu=pt"'
+                        	                        sed -i s/"$grubdefault"/"$grubtext"/g /etc/default/grub
+                                    			update-grub
+                        		else
+						zenity --error --text="Grub autoconfiguration error. Unknown CPU vendor. Please open an issue at github"
+                                		exit
+                fi
+			elif [ $iommu == 0 ]
+				then
+					autoacsopatch=$(zenity --list --text="We have to install the acso Kernel Patch\nChoose an option" --radiolist --column "Check" --column "Configuration" TRUE "Install precompiled acso patch" FALSE "Exit")
+					if [ "$autoacsopatch" == "Exit" ]
+						then exit
+					fi
+					if [ "$autoacsopatch" == "Install precompiled acso patch" ]
+						then
+							mkdir acsokernel/
+							cd acsokernel/
+							wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/397902098/artifacts/download
+							unzip download
+							dpkg -i linux-image-5.4.10-acso_5.4.10-acso-1_amd64.deb
+							zenity --info --title="ACSO Patch" --text="Choose the acso kernel in grub at the next boot"
+							cd ..
+							rm -r acsokernel/
+                					if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+                        					then cpuvendor=AMD
+                        					elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+                                					then cpuvendor=Intel
+                        					else zenity --error --text="Unknown cpu vendor.\nYou have to edit the grub file manually"
+                					fi
+                					if [ "$cpuvendor" == "AMD" ]
+                                        			then
+                                                			grubdefault=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+        			                                        grubiommu=$(echo "$grubdefault" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+                                			                grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubiommu}' amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction"'
+                                                			sed -i s/"$grubdefault"/"$grubtext"/g /etc/default/grub
+                                                			update-grub
+                                        			elif [ "$cpuvendor" == "Intel" ]
+                                                			then
+                                                                	        grubdefault=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+                                                                		grubiommu=$(echo "$grubdefault" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+                                                                		grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubiommu}' intel_iommu=on iommu=pt pcie_acs_override=downstream,multifunction"'
+                                                                		sed -i s/"$grubdefault"/"$grubtext"/g /etc/default/grub
+                                        				else
+                                                				zenity --error --text="Grub autoconfiguration error. Unknown CPU vendor. Please open an issue at github"
+                                                				exit
+                                			fi
+                        		fi
+		fi
+		actrlh=$(echo "$ctgpu" | grep -o ..:....VGA | grep -o ..:...)1
+		actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+		echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules
+		echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules
+		echo "softdep nouveau pre: vfio-pci" > /etc/modprobe.d/nvidia.conf
+		echo "softdep nvidia pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+		echo "softdep nvidia* pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+		echo "softdep amdgpu pre: vfio-pci" > /etc/modprobe.d/amdgpu.conf
+		echo "softdep amdgpu* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+		echo "softdep radeon pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+		echo "softdep radeon* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+		echo "options vfio-pci ids=$pgpu,$actrl" > /etc/modprobe.d/vfio.conf
+		update-initramfs -u -k all
+		zenity --title="gptools" --info --text="Configuration finished!\nReboot to apply changes"
+ 	elif [ "$tooluwant" == "Isolate additional gpu [Only working after the auto gpu passthrough tool]" ]
+		then
+			foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+			ctgpu=$(zenity --list --text="Choose the gpu you want to isolate for gpu passthrough\nYou can not use the initialising gpu" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+        		pgpu=$(echo "$ctgpu" | grep -w -o "1...:....")
+			actrlh=$(echo "$ctgpu" | grep -o ..:....VGA | grep -o ..:...)1
+        		actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+        		echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules
+        		echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules
+        		echo "options vfio-pci ids=$pgpu,$actrl" > /etc/modprobe.d/vfio.conf
+        		update-initramfs -u -k all
+			zenity --info --title="gptools" --text="The gpu was isolated successfully\nReboot to apply changes"
+	elif [ "$tooluwant" == "remove gpu isolation" ]
+		then
+                        foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+			ctgpu=$(zenity --list --text="Choose the gpu you want to remove isolation" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+                        pgpu=$(echo "$ctgpu" | grep -w -o "1...:....")
+                        actrlh=$(echo "$ctgpu" | grep -o ..:....VGA | grep -o ..:...)1
+                        actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+			if [ "$(grep -o "$pgpu" /etc/initramfs-tools/modules)" == $pgpu ]
+        			then sed -i "/"$pgpu"/d" /etc/initramfs-tools/modules
+       				else zenity --info --text="Gpu was not isolated in /etc/initramfs-tools/modules"
+			fi
+			if [ "$(grep -o "$pgpu" /etc/modules)" == $pgpu ]
+        			then sed -i "/"$pgpu"/d" /etc/modules
+        			else zenity --info --text="Gpu was not isolated in /etc/modules"
+			fi
+			if [ "$(grep -o "$pgpu" /etc/modprobe.d/vfio.conf)" == $pgpu ]
+        			then sed -i "/"$pgpu"/d" /etc/modprobe.d/vfio.conf
+        			else zenity --info --text="Gpu was not isolated in /etc/modprobe.d/vfio.conf"
+			fi
+			update-initramfs -u -k all
+			zenity --info --text="The gpu was succesfully removed from isolation"
+	elif [ "$tooluwant" == "Remove Grub IOMMU config" ]
+		then
+			if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+			        then
+                			sed -i s/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"//g /etc/default/grub
+                			update-grub
+        			elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+                			then
+                        			sed -i s/"intel_iommu=on iommu=pt"//g /etc/default/grub
+                        			update-grub
+			fi
+			zenity --info --text="The grub IOMMU configuration was succesfully removed"
+fi
+exit
