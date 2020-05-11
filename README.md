@@ -4,3 +4,9 @@ This is the untested branch, use it only if you know what you do. Only for advan
 ## Improvements/Changelog
 * Grub autoconfiguration is now compatible with all grub based systems
 * Grub manual configuration deleted (No purpose)
+* Add functions for cleaner code
+* Add getopts long notation
+* Add gui and cli mode
+#
+## Syntax
+gptools [--cli/--gui] [--isolate-gpu/--configure-gpu-passthrough/...]
