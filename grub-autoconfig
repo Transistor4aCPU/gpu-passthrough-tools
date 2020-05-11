@@ -1,13 +1,17 @@
 #!/bin/bash
 # Grub-autoconfig module
-
-if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ] # Check if AMD is the cpu vendor
-	then
-		sed -i s/"quiet splash"/"amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"/g /etc/default/grub # Exchange quiet splash in the file /etc/default/grub with amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 if the cpu vendor is AMD
-		update-grub # Update grub to apply changes
-	elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ] # Check if Intel is the cpu vendor
-		then
-			sed -i s/"quiet splash"/"intel_iommu=on iommu=pt"/g /etc/default/grub # Exchange quiet splash in /etc/default/grub with intel_iommu=on iommu=pt if the cpu vendor is Intel
-			update-grub # Update grub to apply changes
-fi
+grubconf() {
+grubadd=$1
+grubdefaultline=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+grubdefault=$(echo "$grubdefaultline" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubdefault}' '${grubadd}'"'
+sed -i s/"$grubdefaultline"/"$grubtext"/g /etc/default/grub
+update-grub
+}
+# Syntax
+# grubconf ["Something you want to add to GRUB_CMDLINE_LINUX_DEFAULT"]
+# Example:
+# sudo bash grub-autoconfig "amd_iommu=on"
+# Example result:
+# 
 exit
