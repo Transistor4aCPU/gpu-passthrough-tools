@@ -1,0 +1,263 @@
+#!/bin/bash
+amiroot() {
+	if [ $(whoami)=!root ]
+		then
+			case "$ui" in
+				gui) zenity --title="Permission Error" --error --text="You should run GPTools as root/superuser" ;;
+				cli) echo "Permission error: You should run GPTools as root/superuser" ;;
+			esac
+	fi
+}
+cpuvendorfunction() {
+	if [ "cat /proc/cpuinfo | grep -c AuthenticAMD" > "0" ]
+		then cpuvendor=AMD
+        	elif [ "cat /proc/cpuinfo | grep -c GenuineIntel" > "0" ]
+        		then cpuvendor=Intel
+		else
+			case "$ui" in
+				gui) zenity --error --text="Unknown cpu vendor.\nYou have to edit the grub file manually.\nPlease open an issue at github." ;;
+				cli) echo -e "Error: Unknown cpu vendor.\nYou have to edit the grub file manually.\nPlease open an issue at github." ;;
+			esac
+	fi
+}
+status() {
+	if [ "$(grep -c "amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1" /etc/default/grub)" >= "1" ]
+		then cpugrubiommu="AMD IOMMU enabled"
+		elif [ "$(grep -c "intel_iommu=on iommu=pt" /etc/default/grub)" >= "1" ]
+			then cpugrubiommu="Intel IOMMU enabled"
+	fi
+	if [ -f /etc/modprobe.d/amdgpu.conf ]
+		then
+			if [ -f /etc/modprobe.d/nvidia.conf ]
+				then vfioisol=1
+			fi
+		else vfioisol=0
+	fi
+	if [ "$grubiommu" == "("AMD IOMMU Enabled"|"Intel IOMMU enabled")" ]
+		then
+			if [ "$vfioisol" == "1" ]
+				then gpupready=1
+				else gpupready=0
+			fi
+	fi
+}
+passgpu() {
+        pgpu=$(echo "$ctgpu" | grep -w -o "1...:....")
+        actrlh=$(echo "$ctgpu" | grep -o ..:....VGA | grep -o ..:...)1
+        actrl=$(lspci -nn | grep "$actrlh" | grep -o 1...:....)
+}
+initpassgpu() {
+        echo "vfio vfio_iommu_type1 vfio_virqfd vfio_pci ids=$pgpu,$actrl" >> /etc/initramfs-tools/modules
+        echo "vfio vfio_iommu_type1 vfio_pci ids=$pgpu,$actrl" >> /etc/modules
+        echo "options vfio-pci ids=$pgpu,$actrl" >> /etc/modprobe.d/vfio.conf
+        update-initramfs -u -k all
+}
+grubconf() {
+	grubadd=$1
+	grubdefaultline=$(grep GRUB_CMDLINE_LINUX_DEFAULT /etc/default/grub)
+	grubdefault=$(echo "$grubdefaultline" | sed s/'GRUB_CMDLINE_LINUX_DEFAULT='//g | sed s/'"'//g)
+	grubtext='GRUB_CMDLINE_LINUX_DEFAULT="'${grubdefault}' '${grubadd}'"'
+	sed -i s/"$grubdefaultline"/"$grubtext"/g /etc/default/grub
+	update-grub
+}
+requirements() {
+	if [ "$(lspci -nn | grep VGA | wc -l)" -lt 2 ]
+		then
+			gpus=0
+                        gpurqm="You need at least 2 gpus.\n"
+		else gpus=1
+	fi
+
+	# IOMMU test
+	if [ "compgen -G "/sys/kernel/iommu_groups/*/devices/*"" > /dev/null ]
+		then iommu=1
+		else
+			iommu=0
+			iommurqm="IOMMU isn't enabled. Enable it in the BIOS/UEFI.\n"
+	fi
+
+	# Check if AMD svm or Intel vmx is enabled
+	if [ "$(grep -o "svm" /proc/cpuinfo | sort | uniq)" == "svm" ]
+		then vm=1
+		elif [ "$(grep -o "vmx" /proc/cpuinfo | sort | uniq)" == "vmx" ]
+			then vm=1
+        	else
+			vm=0
+			vmrqm="Virtualization technology not enabled.\nEnable it in the BIOS/UEFI."
+	fi
+
+	# Check requirements
+	if [ $(($gpus + $iommu + $vm)) == "3" ]
+		then
+                        case "$ui" in
+                                gui) zenity --info --title="Requirements" --text="All requirements met" ;;
+                                cli) echo "All requirements met" ;;
+                        esac
+        	else
+			case "$ui" in
+			        gui) zenity --error --title="Requirements" --text="Requirements not met. ${gpurqm} ${iommurqm} ${vmrqm}" ;;
+        			cli) echo -e "Error: Requirements not met\n${gpurqm}${iommurqm}${vmrqm}" ;;
+			esac
+			exit
+	fi
+}
+while getopts :-: o
+do  case "$o$OPTARG" in
+(-cli)
+ui=cli
+	;;
+(-gui)
+ui=gui
+	;;
+(-help)
+echo -e "Tools to configure gpu passthrough\nSyntax:\ngptools [--gui/--cli] [--option]\nOption list:\n--gui Use GUI mode\n--cli Use CLI mode\n--choose Choose an tool\n--isolate-gpu Isolate additional gpu\n--configure-gpu-passthrough Configure gpu passthrough\n--requirements Check requirements"
+	;;
+(-requirements)
+requirements
+	;;
+(-choose)
+case "$ui" in
+	gui)
+	choosetool=$(zenity --list --title="GPTools menu" --text="Choose the tool you want" --radiolist --column "Choose" --column "Tool" TRUE "Configure gpu passthrough" FALSE "Isolate additional gpu" FALSE "Check requirements" FALSE "Exit")
+	case "$choosetool" in
+		"Configure gpu passthrough") gptools --gui --configure-gpu-passthrough ;;
+		"Isolate additional gpu") gptools --gui --isolate-gpu ;;
+		"Check requirements") gptools --gui --requirements ;;
+		"Exit") exit ;;
+	esac
+	;;
+	cli)
+	echo -e "GPTools menu\nChoose the tool you want\n[1] Configure gpu passthrough\n[2] Isolate additional gpu\n[3] Check requirements\n[4] Exit"
+	read "$choosetool"
+	case "$choosetool" in
+                1|"[1]"|"1") gptools --gui --configure-gpu-passthrough ;;
+                2|"[2]"|"2") gptools --gui --isolate-gpu ;;
+                3|"[3]"|"3") gptools --gui --requirements ;;
+                4|"[4]"|"4") exit ;;
+        esac
+	;;
+esac
+	;;
+(-isolate-gpu)
+amiroot
+status
+if [ "$gpupready" =! "1" ]
+	then
+		case "$ui" in
+			gui) zenity --error --text="You have to first run --configure-gpu-passthrough!\nElse check if IOMMU is enabled and if the drivers are isolated" --title="Isolation error" ;;
+			cli) echo -e "You have to first run --configure-gpu-passthrough!\nElse check if IOMMU is enabled and if the drivers are isolated" ;;
+		esac
+		exit
+fi
+case "$ui" in
+	gui)
+	foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+	ctgpu=$(zenity --list --text="Choose the gpu you want to isolate for gpu passthrough\nYou can not use the initialising gpu" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+	;;
+	cli)
+	echo -e "Choose the gpu you want to passthrough.\nYou can't passthrough the initializing gpu"
+	lspci -nn | grep "VGA compatible controller" | cat -b
+	read clgpu
+	ctgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$clgpu"p")
+	;;
+esac
+passgpu
+initpassgpu
+case "$ui" in
+	gui) zenity --info --title="GPTools" --text="The gpu was isolated successfully\nReboot to apply changes" ;;
+	cli) echo -e "The gpu was isolated successfully\nReboot to apply changes"
+esac
+	;;
+(-configure-gpu-passthrough)
+amiroot
+zenity --info --text "This interactive automated script configures gpu passthrough\nCheck requirements..." --title "gptools"
+cont=$(zenity --question --text="Do you wish to continue?")
+if [ $cont == 1 ]
+	then exit
+fi
+# Show IOMMU groups
+case "$ui" in
+	gui)
+	foo=( $(lspci -nn | grep "VGA compatible controller" | sed 's/ //g'))
+	ctgpu=$(zenity --list --text="Choose the gpu you want to isolate for passthrough\nYou can not use the initialising gpu" --radiolist --column "Check" --column "gpu" TRUE ${foo[@]::1} $(printf "FALSE %s\n" ${foo[@]:1}))
+	;;
+	cli)
+        echo -e "Choose the gpu you want to passthrough.\nYou cant passthrough the initializing gpu"
+        lspci -nn | grep "VGA compatible controller" | cat -b
+        read clgpu
+        ctgpu=$(lspci -nn | grep "VGA compatible controller" | sed -n ""$clgpu"p")
+        ;;
+esac
+ipgpu=$(echo "$ctgpu" | grep -o "..:....VGA" | grep -o "..:....")
+iommugroup=$(find /sys/kernel/iommu_groups/ -type l | grep $ipgpu | grep -o "/../" | grep -Eo '[0-9]{1,4}' )
+iommuc=$(find /sys/kernel/iommu_groups/ -type l | grep -o "/iommu_groups/$iommugroup" | grep -c "$iommugroup")
+if [ $iommuc > 2 ]
+	then iommu=0
+	else iommu=1
+fi
+if [ $iommu == 1 ]
+	then
+		cpuvendorfunction
+		if [ "$cpuvendor" == "AMD" ]
+                	then
+				grubconf "amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1"
+                       	elif [ "$cpuvendor" == "Intel" ]
+                        	then
+	                		grubconf "intel_iommu=on iommu=pt"
+                        else
+                               	exit
+		fi
+	elif [ $iommu == 0 ]
+		then
+			case "$ui" in
+				gui) autoacsopatch=$(zenity --list --text="We have to install the acso Kernel patch\nChoose an option" --radiolist --column "Check" --column "Configuration" TRUE "Install precompiled acso patch" FALSE "Exit") ;;
+				cli)
+				echo -e "We have to install the acso Kernel patch\nChoose an option\n[1] Install precompiled acso patch\n[2] Exit"
+				read ackpatch
+				case "$ackpatch" in
+        				"1"|"[1]"|"") autoacsopatch="Install precompiled acso patch" ;;
+        				"2"|"[2]") autoacsopatch="Exit" ;;
+				esac
+				;;
+			esac
+			if [ "$autoacsopatch" == "Exit" ]
+				then exit
+			fi
+			if [ "$autoacsopatch" == "Install precompiled acso patch" ]
+				then
+					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/548804339/artifacts/raw/linux-image-5.6.12-acso_5.6.12-acso-1_amd64.deb
+					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/548804339/artifacts/raw/linux-headers-5.6.12-acso_5.6.12-acso-1_amd64.deb
+					dpkg -i linux-image-5.6.12-acso_5.6.12-acso-1_amd64.deb
+					dpkg -i linux-headers-5.6.12-acso_5.6.12-acso-1_amd64.deb
+					case "$ui" in
+						gui) zenity --info --title="ACSO Patch" --text="Choose the acso kernel in grub at the next boot" ;;
+						cli) echo "Choose the acso kernel in grub at boot if you want to use gpu passthrough" ;;
+					esac
+					rm linux-image-5.6.12-acso_5.6.12-acso-1_amd64.deb
+					rm linux-headers-5.6.12-acso_5.6.12-acso-1_amd64.deb
+        				cpuvendorfunction
+        				if [ "$cpuvendor" == "AMD" ]
+                               			then
+							grubconf "amd_iommu=on iommu=pt kvm_amd.npt=1 kvm_amd.avic=1 pcie_acs_override=downstream,multifunction"
+                               			elif [ "$cpuvendor" == "Intel" ]
+                                      			then
+                                                       	        grubconf "intel_iommu=on iommu=pt pcie_acs_override=downstream,multifunction"
+                      			fi
+               		fi
+fi
+passgpu
+echo "softdep nouveau pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+echo "softdep nvidia pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+echo "softdep nvidia* pre: vfio-pci" >> /etc/modprobe.d/nvidia.conf
+echo "softdep amdgpu pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+echo "softdep amdgpu* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+echo "softdep radeon pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+echo "softdep radeon* pre: vfio-pci" >> /etc/modprobe.d/amdgpu.conf
+initpassgpu
+case "$ui" in
+	gui) zenity --title="GPTools" --info --text="Configuration finished!\nReboot to apply changes" ;;
+	cli) echo -e "Configuration finished!\nReboot to apply changes" ;;
+esac
+	;;
+esac; done
+exit
