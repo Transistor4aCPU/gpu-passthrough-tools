@@ -9,6 +9,5 @@ This is the stable branch.
 * Add gui and cli mode
 * Working .Desktop starter
 #
-## Syntax
-Terminal: gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
-You can start it with the .desktop starter in the startmenu
+## Terminal Syntax
+gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
