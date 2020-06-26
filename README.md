@@ -9,4 +9,4 @@ This is the untested branch, use it only if you know what you do. Only for advan
 * Add gui and cli mode
 #
 ## Syntax
-gptools [--cli/--gui] [--isolate-gpu/--configure-gpu-passthrough/...]
+gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
