@@ -1,6 +1,5 @@
 # GPTools GUI stable
-This is the stable branch.
-#
+A program that automatically configures gpu passthrough in less then 5 minutes on Debian/Ubuntu based linux distributions.
 ## Installation
 ```
 # Download Debian package 
