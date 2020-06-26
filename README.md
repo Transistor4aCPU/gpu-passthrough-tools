@@ -1,5 +1,5 @@
-# GPTools GUI untested
-This is the untested branch, use it only if you know what you do. Only for advanced users or developers.
+# GPTools GUI stavle
+This is the stable branch.
 #
 ## Improvements/Changelog
 * Grub autoconfiguration is now compatible with all grub based systems
@@ -7,6 +7,8 @@ This is the untested branch, use it only if you know what you do. Only for advan
 * Add functions for cleaner code
 * Add getopts long notation
 * Add gui and cli mode
+* Working .Desktop starter
 #
 ## Syntax
-gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
+Terminal: gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
+You can start it with the .desktop starter in the startmenu
