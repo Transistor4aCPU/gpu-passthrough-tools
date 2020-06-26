@@ -1,4 +1,4 @@
-# GPTools GUI stavle
+# GPTools GUI stable
 This is the stable branch.
 #
 ## Installation
