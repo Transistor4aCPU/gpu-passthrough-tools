@@ -1,6 +1,15 @@
 # GPTools GUI stavle
 This is the stable branch.
 #
+## Installation
+```
+# Download Debian package 
+wget https://github.com/Transistor4aCPU/gpu-passthrough-tools/releases/download/gptools-0.7.3/gptools-0.7.3-amd64.deb
+# Install Debian package 
+sudo dpkg -i gptools-0.7.3-amd64.deb
+# Start it with the startmenu desktop icon or with the following terminal command
+sudo gptools [--cli/--gui] --choose
+```
 ## Improvements/Changelog
 * Grub autoconfiguration is now compatible with all grub based systems
 * Grub manual configuration deleted (No purpose)
