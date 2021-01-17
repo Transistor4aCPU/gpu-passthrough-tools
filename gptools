@@ -221,9 +221,9 @@ if [ $iommu == 1 ]
 				esac
 				;;
 			esac
-			if [ "$autoacsopatch" == "Exit" ]
-				then exit
-			fi
+#			if [ "$autoacsopatch" == "Exit" ]
+#				then exit
+#			fi
 			if [ "$autoacsopatch" == "Install precompiled acso patch" ]
 				then
 					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/940850127/artifacts/file/linux-headers-5.10.4-acso_5.10.4-acso-1_amd64.deb
@@ -244,6 +244,7 @@ if [ $iommu == 1 ]
                                       			then
                                                        	        grubconf "intel_iommu=on iommu=pt pcie_acs_override=downstream,multifunction"
                       			fi
+				else exit
                		fi
 fi
 passgpu
