@@ -15,7 +15,6 @@ sudo gptools [--cli/--gui] --choose
 * Add functions for cleaner code
 * Add getopts long notation
 * Add gui and cli mode
-* Working .Desktop starter
 #
 ## Terminal Syntax
 gptools [--cli/--gui] [--choose/--isolate-gpu/--configure-gpu-passthrough]
