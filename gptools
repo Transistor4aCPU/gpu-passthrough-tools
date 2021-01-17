@@ -226,18 +226,16 @@ if [ $iommu == 1 ]
 			fi
 			if [ "$autoacsopatch" == "Install precompiled acso patch" ]
 				then
-					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/823464929/artifacts/raw/linux-headers-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/823464929/artifacts/raw/linux-image-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					dpkg -i linux-headers-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					dpkg -i linux-image-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					
+					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/940850127/artifacts/file/linux-headers-5.10.4-acso_5.10.4-acso-1_amd64.deb
+					wget https://gitlab.com/Queuecumber/linux-acs-override/-/jobs/940850127/artifacts/file/linux-headers-5.10.4-acso_5.10.4-acso-1_amd64.deb
+					dpkg -i linux-headers-5.10.4-acso_5.10.4-acso-1_amd64.deb
+					dpkg -i linux-image-5.10.4-acso_5.10.4-acso-1_amd64.deb
 					case "$ui" in
 						gui) zenity --info --title="ACSO Patch" --text="Choose the acso kernel in grub at the next boot" ;;
 						cli) echo "Choose the acso kernel in grub at boot if you want to use gpu passthrough" ;;
 					esac
-					rm linux-headers-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					rm linux-image-5.8.18-acso_5.8.18-acso-1_amd64.deb
-					
+					rm linux-headers-5.10.4-acso_5.10.4-acso-1_amd64.deb
+					rm linux-image-5.10.4-acso_5.10.4-acso-1_amd64.deb
         				cpuvendorfunction
         				if [ "$cpuvendor" == "AMD" ]
                                			then
